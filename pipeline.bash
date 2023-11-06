@@ -5,7 +5,6 @@
 # He use a pre-trained YOLOv8x object detection model and moves the resulting
 # crop images to a new dataset directory organized by class subdirectories.
 
-# Usage: ./yolo_pipeline.bash <path_directory>
 # Prerequis object detection : 
     # pip3 install ultralytics
     
