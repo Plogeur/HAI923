@@ -18,6 +18,7 @@
 Input_file=""
 Output_file=""
 MinScale=64
+ScaleChange=false
 Upscale=4
 
 # Define usage function to display usage instructions
@@ -42,6 +43,7 @@ while getopts "iI:oO:sS:uU:hHcH" opt; do
       ;;
     s | S) # minimun scale picture
       MinScale="$OPTARG"
+      ScaleChange=true
       ;;
     u | U) # upscale size
       Upscale="$OPTARG"
@@ -108,7 +110,7 @@ function higher_resolution() {
         fi 
     done < <(find "$source_directory" -type f -iname '*.jpg')
 
-    if [ $MinScale -eq 64 ]; then
+    if [ "$ScaleChange" = true ]; then
       echo "$highest_resolution_image"
       else 
       echo "$list_images"
