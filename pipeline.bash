@@ -20,7 +20,6 @@ Input_file=""
 Output_file=""
 MinScale=64
 Upscale=4
-Change=false
 
 # Define usage function to display usage instructions
 usage() {
@@ -29,7 +28,6 @@ usage() {
     echo "-o or -O <output_file>   Output file, default/no argument : Crop_dataset_<input_file>"
     echo "-s or -S <minimum_scale> Minimun scale for detected animal in the object detection step (minimum resolution = minimun scale * minimun scale). default/no argument : the most higher resolution picture in the detected animal picture"
     echo "-u or -U <upscale_size>  Upscale size that will be applyed to the upscaling step, if u=1 there will be no upscaling (u∈[1;4]). default/no argument : u=4"
-    echo "-c or -C                 Change the order of the tools, default/no argument : uspcaling => croping "
     echo "-h or -H                 Display this help message"
     exit 1
 }
@@ -49,9 +47,6 @@ while getopts "iI:oO:sS:uU:hHcH" opt; do
     u | U) # upscale size
       Upscale="$OPTARG"
       ;;
-    c | C) # upscale size
-      Change=true
-      ;;
     h | H)
       usage
       ;;
@@ -68,10 +63,22 @@ if [ -z "$Input_file" ]; then
   usage
 fi
 
+# Check Minimum scale arguments
+if [ "$MinScale" -le 0 ] || [ "$MinScale" -gt 1081 ]; then
+  echo "Error: MinScale must be between 1 and 1080"
+  exit 1
+fi
+
+# Check if required arguments are provided
+if [ "$Upscale" -le 0 ] || [ "$Upscale" -gt 5 ]; then
+  echo "Error: Upscale must be between 1 and 4"
+  exit 1
+fi
+
 # Check if the directory exists
 if [[ ! -d "$Input_file" ]]; then
-    echo "Error: directory not found"
-    exit 1
+  echo "Error: directory not found"
+  exit 1
 fi
 
 # Find the higher resolution animal pictures that is crop by yolo
@@ -79,6 +86,7 @@ function higher_resolution() {
     local source_directory="$Input_file"
     local max_resolution=0
     local highest_resolution_image=""
+    local list_images=""
 
     # Use find to locate all image files in the source directory
     while IFS= read -r image; do
@@ -91,14 +99,22 @@ function higher_resolution() {
         # Calculate the product of height and width
         resolution_product=$((width * height))
 
-        # Compare the resolution product with the current highest resolution
-        if ((resolution_product > max_resolution)); then
-            max_resolution=$resolution_product
-            highest_resolution_image="$image"
-        fi
+        if [ $resolution_product -gt $MinScale*$MinScale ]; then
+          list_images+="$image"
+          # Compare the resolution product with the current highest resolution
+          if ((resolution_product > max_resolution)); then
+              max_resolution=$resolution_product
+              highest_resolution_image="$image"
+          fi
+        fi 
     done < <(find "$source_directory" -type f -iname '*.jpg')
 
-    echo "$highest_resolution_image"
+    if [ $MinScale -eq 64 ]; then
+      echo "$highest_resolution_image"
+      else 
+      echo "$list_images"
+    fi 
+
 }
 
 function uspcaling() {
@@ -118,7 +134,7 @@ function croping() {
     # Create Crop_dataset directory
     if [[ "$Output_file" == "" ]]; then
         mkdir -p "Crop_dataset_$Input_file"
-    else
+        else
         mkdir -p "$Output_file"
     fi
     
@@ -127,19 +143,18 @@ function croping() {
         yolo predict model=yolov8x.pt source="$picture" save_crop
         source_directory="runs/detect/*/crops/*/*"
         image_path=$(higher_resolution $source_directory)
-        mv "$image_path" Crop_dataset_$Input_file/
+        for element in "$image_path"; do 
+            mv "$element" Crop_dataset_$Input_file/
+        done
         rm -r runs/detect/
     done
 }
 
 main() {
-    if [[ "$Change" == false]]; then
-        uspcaling
-        croping
-    else
-        croping
-        uspcaling
-    fi
+  if [[ "$Upscale" != 1 ]]; then
+    uspcaling
+  fi
+  croping
 }
 
 main
