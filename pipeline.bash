@@ -21,6 +21,10 @@ MinScale=64
 ScaleChange=false
 Upscale=4
 
+DetectedObject=0
+FailDetection=0
+DeletedImage=0
+
 # Define usage function to display usage instructions
 usage() {
     echo "Usage: $0 -i <input_file>"
@@ -91,6 +95,8 @@ function higher_resolution() {
 
     # Use find to locate all image files in the source directory
     while IFS= read -r image; do
+
+        DetectedObject=$((DetectedObject + 1))
         # Use identify from ImageMagick to get the resolution
         resolution=$(identify -format "%w:%h" "$image")
 
@@ -141,10 +147,15 @@ function croping() {
     
     # Crop animal object in picture
     for picture in "Upscaled_dataset_$Input_file"/*; do
+        local SaveDetectionObject=$DetectedObject
         yolo predict model=yolov8x.pt source="$picture" save_crop
         source_directory="runs/detect/*/crops/*/*"
         image_path=$(higher_resolution $source_directory)
-        for element in "$image_path"; do 
+        if [[ $SaveDetectionObject -eq $DetectedObject ]]; then 
+            FailDetection=$((FailDetection + 1))
+        fi
+        DeletedImage=$((DeletedImage + DetectedObject - (echo "$image_path" | wc -w))
+        for element in "$image_path"; do
             mv "$element" Crop_dataset_$Input_file/
         done
         rm -r runs/detect/
@@ -156,6 +167,12 @@ main() {
     uspcaling
   fi
   croping
+
+  echo "#######################################################################"
+  echo "Number of object detected : $DetectedObject"
+  echo "Number of fail detection (0 object detected in a picture) : $FailDetection"
+  echo "Number of deleted picture in the resolution selection : $DeletedImage"
+  echo "#######################################################################"
 }
 
 main
