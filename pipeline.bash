@@ -23,6 +23,8 @@ MinScale=64
 ScaleChange=false
 Upscale=4
 image_path=""
+Model="upscayl-ultrasharp-v2" #default model
+num=0
 
 # Initialize counter variables with default values
 DetectedObject=0
@@ -38,6 +40,7 @@ usage() {
                                  (minimum resolution = minimun scale * minimun scale). 
                                  default/no argument : the most higher resolution picture 
                                  in the detected animal picture"
+    echo "        -m or -M <model_name>    Model name for upscale ()" #TODO LIST OF MODEL IN UPSCALE    
     echo "        -u or -U <upscale_size>  Upscale size that will be applyed to the upscaling step, 
                                  if u=1 there will be no upscaling 
                                  (u∈[1;4]). default/no argument : u=4"
@@ -46,13 +49,16 @@ usage() {
 }
 
 # Parse command-line arguments
-while getopts "i:I:o:O:s:S:u:U:hH" opt; do
+while getopts "i:I:o:O:s:S:m:M:u:U:hH" opt; do
   case $opt in
     i | I) # input dir
       Input_file="$OPTARG"
       ;;
     o | O) # output dir
       Output_file="$OPTARG"
+      ;;
+    m | M) # output dir
+      Model="$OPTARG"
       ;;
     s | S) # minimun scale picture
       MinScale="$OPTARG"
@@ -123,6 +129,7 @@ function higher_resolution() {
 
         # Calculate the product of height and width
         resolution_product=$((width * height))
+        echo resolution : "$resolution_product" 
 
         if [[ $resolution_product -gt $((MinScale * MinScale)) ]]; then
           list_images+="$image"
@@ -131,7 +138,7 @@ function higher_resolution() {
               max_resolution=$resolution_product
               highest_resolution_image="$image"
           fi
-        fi 
+        fi
     done < <(find "$1" -type f -iname '*.jpg')
 
     if [ "$ScaleChange" = true ]; then
@@ -146,7 +153,7 @@ function uspcaling() {
     mkdir -p "Upscaled_dataset_$Input_file"
     for picture in $Input_file/*; do
         if [ -f "$picture" ]; then
-            Upscaler/start.cmd --model upscayl-ultrasharp-v2 --scale $Upscale --format jpg --input $picture #-update -frames:v 1
+            Upscaler/start.cmd --model $Model --scale $Upscale --format jpg --input $picture #-update -frames:v 1
             picture_without_extension=$(basename "$picture" .jpg)
             mv "$Input_file/$picture_without_extension-upscaled.jpg" "Upscaled_dataset_$Input_file/"
             rm -r "$Input_file/$picture_without_extension-upscaled_workspace/"
@@ -171,18 +178,18 @@ function move() {
 
 # Crop animal object in picture
 function croping() {
-    local num=0
     for picture in "Upscaled_dataset_$Input_file"/*; do
         local SaveDetectionObject=$DetectedObject
         yolo predict model=yolov8x.pt source="$picture" save_crop
         source_directory="runs/detect/*/crops/*/*"
-        higher_resolution $source_directory
-        # Fail detection so move the Upscale picture
-        if [[ $SaveDetectionObject -eq $DetectedObject ]]; then 
+        if [ -z "$(ls -A $source_directory)" ]; then #Check if empty repertory
+            # Fail detection so move the Upscale picture
             FailDetection=$((FailDetection + 1))
             image_path=$picture
+        else
+            higher_resolution $source_directory
         fi
-        DeletedImage=$((DeletedImage + DetectedObject - DeletedImage - $(echo "$image_path" | wc -w)))
+        DeletedImage=$((DeletedImage + $(echo "$picture" | wc -w) - $(echo "$image_path" | wc -w)))
         move 
         rm -r runs/detect/
         num=$((num + 1))
@@ -196,9 +203,10 @@ main() {
   croping
 
   echo "#######################################################################"
-  echo "Number of object detected : $DetectedObject"
-  echo "Number of fail detection (0 object detected in a picture) : $FailDetection"
-  echo "Number of deleted picture in the resolution selection : $DeletedImage"
+  echo "Number of picture in $Input_file : $num" 
+  echo "Number of object detected : $DetectedObject/$num (Detected Object/number images)"
+  echo "Number of fail detection (0 object detected in a picture) : $FailDetection/$num (Fail Detection/number images)"
+  echo "Number of deleted picture in the resolution selection : $DeletedImage/$DetectedObject (Deleted Image/Detected Object)"
   echo "#######################################################################"
 }
 
