@@ -24,6 +24,7 @@ ScaleChange=false
 Upscale=4
 image_path=""
 Model="upscayl-ultrasharp-v2" #default model
+ListModel=("upscayl-ultrasharp-v2" "upscayl-realesrgan-x4plus-v3" "upscayl-remacri" "upscayl-ultramix_balanced" "upscayl-uniscale-restore" "xintao-realesrgan-x4plus")
 num=0
 
 # Initialize counter variables with default values
@@ -40,7 +41,7 @@ usage() {
                                  (minimum resolution = minimun scale * minimun scale). 
                                  default/no argument : the most higher resolution picture 
                                  in the detected animal picture"
-    echo "        -m or -M <model_name>    Model name for upscale ()" #TODO LIST OF MODEL IN UPSCALE    
+    echo "        -m or -M <model_name>    Model name for upscale ${my_array[@]}"    
     echo "        -u or -U <upscale_size>  Upscale size that will be applyed to the upscaling step, 
                                  if u=1 there will be no upscaling 
                                  (u∈[1;4]). default/no argument : u=4"
@@ -109,6 +110,22 @@ fi
 
 if [ -z "$(ls -A "$Input_file")" ]; then
   echo "Error: Directory is empty"
+  exit 1
+fi
+
+# Function to check if an element is in an array
+function in_array() {
+    local element="$1"
+    shift
+    for e in "$@"; do
+        [[ "$e" == "$element" ]] && return 1
+    done
+    return 0
+}
+
+# Check if Model is on upscale model list
+if in_array "$Model" "${ListModel[@]}"; then
+  echo "Error: Model Upscale not found"
   exit 1
 fi
 
